@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import multipart from '@fastify/multipart';
 import { env } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
@@ -8,6 +9,8 @@ import { salesRoutes } from './modules/sales/sales.routes.js';
 import { inventoryRoutes } from './modules/inventory/inventory.routes.js';
 import { refundsRoutes } from './modules/refunds/refunds.routes.js';
 import { deferredSalesRoutes } from './modules/deferred-sales/deferred-sales.routes.js';
+import { labelsRoutes } from './modules/labels/labels.routes.js';
+import { importsRoutes } from './modules/imports/imports.routes.js';
 
 const fastify = Fastify({
   logger: {
@@ -23,6 +26,12 @@ await fastify.register(cors, {
 
 await fastify.register(jwt, {
   secret: env.JWT_SECRET,
+});
+
+await fastify.register(multipart, {
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB límite para archivos CSV/Excel
+  },
 });
 
 // Endpoint de chequeo de salud
@@ -41,6 +50,8 @@ await fastify.register(salesRoutes, { prefix: '/api/sales' });
 await fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
 await fastify.register(refundsRoutes, { prefix: '/api/refunds' });
 await fastify.register(deferredSalesRoutes, { prefix: '/api/sales/deferred' });
+await fastify.register(labelsRoutes, { prefix: '/api/labels' });
+await fastify.register(importsRoutes, { prefix: '/api/imports' });
 
 // Inicio del servidor
 const start = async () => {
