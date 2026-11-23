@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { env } from './config/env.js';
+import { authRoutes } from './modules/auth/auth.routes.js';
 
 const fastify = Fastify({
   logger: {
@@ -27,6 +28,9 @@ fastify.get('/api/health', async (_request, _reply) => {
     timestamp: new Date().toISOString(),
   };
 });
+
+// Módulos
+await fastify.register(authRoutes, { prefix: '/api/auth' });
 
 // Inicio del servidor
 const start = async () => {
