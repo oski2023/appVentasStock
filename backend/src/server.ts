@@ -5,6 +5,9 @@ import { env } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 import { salesRoutes } from './modules/sales/sales.routes.js';
+import { inventoryRoutes } from './modules/inventory/inventory.routes.js';
+import { refundsRoutes } from './modules/refunds/refunds.routes.js';
+import { deferredSalesRoutes } from './modules/deferred-sales/deferred-sales.routes.js';
 
 const fastify = Fastify({
   logger: {
@@ -35,6 +38,9 @@ fastify.get('/api/health', async (_request, _reply) => {
 await fastify.register(authRoutes, { prefix: '/api/auth' });
 await fastify.register(catalogRoutes, { prefix: '/api/catalog' });
 await fastify.register(salesRoutes, { prefix: '/api/sales' });
+await fastify.register(inventoryRoutes, { prefix: '/api/inventory' });
+await fastify.register(refundsRoutes, { prefix: '/api/refunds' });
+await fastify.register(deferredSalesRoutes, { prefix: '/api/sales/deferred' });
 
 // Inicio del servidor
 const start = async () => {
