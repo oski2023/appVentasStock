@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
 import { env } from './config/env.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
+import { catalogRoutes } from './modules/catalog/catalog.routes.js';
 
 const fastify = Fastify({
   logger: {
@@ -31,6 +32,7 @@ fastify.get('/api/health', async (_request, _reply) => {
 
 // Módulos
 await fastify.register(authRoutes, { prefix: '/api/auth' });
+await fastify.register(catalogRoutes, { prefix: '/api/catalog' });
 
 // Inicio del servidor
 const start = async () => {
