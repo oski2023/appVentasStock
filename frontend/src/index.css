@@ -7,14 +7,28 @@ button, input, select, textarea {
   touch-action: manipulation;
 }
 
-/* Garantizar contraste de texto legible al tipear en cualquier input, select o textarea */
+/* Garantizar contraste y diseño suave al tipear en cualquier input, select o textarea */
 input, select, textarea {
   color: #111827;
+  background-color: #ffffff;
 }
 
 .dark input:not([type="checkbox"]):not([type="radio"]), 
 .dark select, 
 .dark textarea {
+  color: #f3f4f6;
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+/* Opciones de menús desplegables (select) */
+select option {
+  background-color: #ffffff;
+  color: #111827;
+}
+
+.dark select option {
+  background-color: #1f2937;
   color: #f3f4f6;
 }
 
