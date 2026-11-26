@@ -5,14 +5,13 @@ import {
   CreditCard,
   ShoppingBag,
   Receipt,
-  Calendar,
   ChevronDown,
   ChevronUp,
   RefreshCw,
   QrCode,
-  CheckCircle2,
   Clock,
-  ArrowRight,
+  RotateCcw,
+  PackagePlus,
   User,
 } from 'lucide-react';
 import { ApiClient } from '../services/api';
@@ -38,6 +37,32 @@ interface SalePayment {
   referencia_externa?: string;
   estado: string;
   fecha: string;
+}
+
+interface RefundItem {
+  variant_id: string;
+  cantidad: number;
+  precio_unitario: number;
+  subtotal: number;
+  producto_nombre?: string;
+  sku?: string;
+  codigo?: string;
+  talle?: string;
+  color?: string;
+}
+
+interface Refund {
+  id: string;
+  sale_id: string;
+  numero_operacion: string;
+  importe: number;
+  medio: 'efectivo' | 'transferencia' | 'cambio';
+  referencia_externa?: string;
+  motivo: string;
+  fecha: string;
+  registrado_por_nombre: string;
+  autorizado_por_nombre?: string;
+  items: RefundItem[];
 }
 
 interface Sale {
@@ -66,6 +91,16 @@ interface CierreCaja {
   total_posnet: number;
   efectivo_recibido: number;
   efectivo_vuelto: number;
+  // Devoluciones y Reintegros
+  total_devoluciones: number;
+  total_reintegros: number;
+  reintegros_efectivo: number;
+  reintegros_transferencia: number;
+  cambios_prendas: number;
+  // Saldos Netos
+  total_neto: number;
+  efectivo_neto_caja: number;
+  transferencia_neta: number;
 }
 
 interface SalesHistoryPageProps {
@@ -78,6 +113,8 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
   onNavigatePos,
 }) => {
   const [ventas, setVentas] = useState<Sale[]>([]);
+  const [devoluciones, setDevoluciones] = useState<Refund[]>([]);
+  const [activeTab, setActiveTab] = useState<'ventas' | 'devoluciones'>('ventas');
   const [cierreCaja, setCierreCaja] = useState<CierreCaja>({
     total_operaciones: 0,
     total_general: 0,
@@ -86,6 +123,14 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
     total_posnet: 0,
     efectivo_recibido: 0,
     efectivo_vuelto: 0,
+    total_devoluciones: 0,
+    total_reintegros: 0,
+    reintegros_efectivo: 0,
+    reintegros_transferencia: 0,
+    cambios_prendas: 0,
+    total_neto: 0,
+    efectivo_neto_caja: 0,
+    transferencia_neta: 0,
   });
 
   const [filterPeriod, setFilterPeriod] = useState<'hoy' | 'ayer' | 'semana' | 'todas'>('hoy');
@@ -113,12 +158,15 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
 
       params.set('limit', '50');
 
-      const data = await ApiClient.get<{ ventas: Sale[]; cierre_caja: CierreCaja }>(
-        `/sales?${params.toString()}`
-      );
+      const data = await ApiClient.get<{
+        ventas: Sale[];
+        devoluciones?: Refund[];
+        cierre_caja: CierreCaja;
+      }>(`/sales?${params.toString()}`);
 
       if (data) {
         setVentas(data.ventas || []);
+        setDevoluciones(data.devoluciones || []);
         if (data.cierre_caja) {
           setCierreCaja(data.cierre_caja);
         }
@@ -200,53 +248,73 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
       {/* ============================================================ */}
       {/* TARJETAS DE CIERRE / ARQUEO DE CAJA */}
       {/* ============================================================ */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-6">
-        {/* Total General Facturado */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+        {/* Total Neto Recaudado */}
         <div className="col-span-2 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-800 p-4 text-white shadow-md">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-brand-100 block">
-            Total General en Caja
-          </span>
-          <div className="mt-1 flex items-baseline justify-between">
-            <span className="text-2xl sm:text-3xl font-black tracking-tight">
-              ${cierreCaja.total_general.toLocaleString('es-AR')}
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-brand-100 block">
+              Recaudación Neta en Caja
             </span>
             <span className="rounded-lg bg-white/20 px-2 py-0.5 text-xs font-bold">
               {cierreCaja.total_operaciones} {cierreCaja.total_operaciones === 1 ? 'venta' : 'ventas'}
             </span>
           </div>
-          <span className="text-[10px] text-brand-100 mt-1 block">
-            Suma neta de todas las operaciones registradas en el período.
-          </span>
+          <div className="mt-1 flex items-baseline justify-between">
+            <span className="text-2xl sm:text-3xl font-black tracking-tight">
+              ${cierreCaja.total_neto.toLocaleString('es-AR')}
+            </span>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-brand-100">
+            <span>Ventas brutas: ${cierreCaja.total_general.toLocaleString('es-AR')}</span>
+            {cierreCaja.total_reintegros > 0 && (
+              <span className="rounded bg-black/20 px-1.5 py-0.5 font-semibold text-rose-200">
+                Reintegros: -${cierreCaja.total_reintegros.toLocaleString('es-AR')}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Total en Efectivo */}
+        {/* Total en Efectivo Real en Mano */}
         <div className="rounded-2xl bg-white dark:bg-gray-900 p-3.5 border border-gray-100 dark:border-gray-800 shadow-2xs">
           <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 mb-1">
             <DollarSign className="h-4 w-4" />
-            <span className="text-[11px] font-bold uppercase">Efectivo en Caja</span>
+            <span className="text-[11px] font-bold uppercase">Efectivo en Mano</span>
           </div>
           <span className="text-lg font-black text-gray-900 dark:text-white block">
-            ${cierreCaja.total_efectivo.toLocaleString('es-AR')}
+            ${cierreCaja.efectivo_neto_caja.toLocaleString('es-AR')}
           </span>
-          {cierreCaja.efectivo_vuelto > 0 && (
-            <span className="text-[10px] text-gray-400 dark:text-gray-500 block mt-0.5">
-              Vueltos dados: ${cierreCaja.efectivo_vuelto.toLocaleString('es-AR')}
-            </span>
-          )}
+          <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 space-y-0.5">
+            {cierreCaja.reintegros_efectivo > 0 ? (
+              <span className="text-rose-500 dark:text-rose-400 block font-medium">
+                Devuelto en efectivo: -${cierreCaja.reintegros_efectivo.toLocaleString('es-AR')}
+              </span>
+            ) : (
+              <span>Sin salidas por devolución</span>
+            )}
+            {cierreCaja.efectivo_vuelto > 0 && (
+              <span>Vueltos dados: ${cierreCaja.efectivo_vuelto.toLocaleString('es-AR')}</span>
+            )}
+          </div>
         </div>
 
-        {/* Total en Transferencias */}
+        {/* Total en Transferencias Netas */}
         <div className="rounded-2xl bg-white dark:bg-gray-900 p-3.5 border border-gray-100 dark:border-gray-800 shadow-2xs">
           <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 mb-1">
             <Building2 className="h-4 w-4" />
-            <span className="text-[11px] font-bold uppercase">Transferencias</span>
+            <span className="text-[11px] font-bold uppercase">Transferencias Netas</span>
           </div>
           <span className="text-lg font-black text-gray-900 dark:text-white block">
-            ${cierreCaja.total_transferencia.toLocaleString('es-AR')}
+            ${cierreCaja.transferencia_neta.toLocaleString('es-AR')}
           </span>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 block mt-0.5">
-            Cobros por alias / CBU
-          </span>
+          <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {cierreCaja.reintegros_transferencia > 0 ? (
+              <span className="text-rose-500 dark:text-rose-400 font-medium">
+                Reintegros transf: -${cierreCaja.reintegros_transferencia.toLocaleString('es-AR')}
+              </span>
+            ) : (
+              <span>Cobros por alias / CBU</span>
+            )}
+          </div>
         </div>
 
         {/* Total en Posnet / Tarjetas */}
@@ -270,34 +338,187 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
         </div>
       </div>
 
+      {/* Banner Informativo si se registraron devoluciones en el período */}
+      {cierreCaja.total_devoluciones > 0 && (
+        <div className="mb-5 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 p-3.5 flex items-start gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300">
+            <RotateCcw className="h-4 w-4" />
+          </div>
+          <div className="flex-1 text-xs">
+            <div className="flex items-center justify-between font-bold text-amber-900 dark:text-amber-200">
+              <span>{cierreCaja.total_devoluciones} Devolución(es) registrada(s) en este período</span>
+              <span className="font-mono text-rose-600 dark:text-rose-400 font-black">
+                -${cierreCaja.total_reintegros.toLocaleString('es-AR')} ARS
+              </span>
+            </div>
+            <p className="text-amber-800 dark:text-amber-300 mt-0.5 text-[11px]">
+              La mercadería devuelta ya fue reingresada al stock. Salidas de caja:
+              {cierreCaja.reintegros_efectivo > 0 && ` Efectivo -$${cierreCaja.reintegros_efectivo.toLocaleString('es-AR')}`}
+              {cierreCaja.reintegros_transferencia > 0 && ` • Transferencias -$${cierreCaja.reintegros_transferencia.toLocaleString('es-AR')}`}
+              {cierreCaja.cambios_prendas > 0 && ` • Cambios por otra prenda: $${cierreCaja.cambios_prendas.toLocaleString('es-AR')}`}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ============================================================ */}
-      {/* LISTADO DETALLADO DE VENTAS */}
+      {/* SELECTOR DE LISTAS: VENTAS VS DEVOLUCIONES */}
       {/* ============================================================ */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-1.5">
-          <span>Detalle de Ventas Registradas</span>
-          <span className="rounded-full bg-gray-100 dark:bg-gray-800 px-2 py-0.5 text-xs text-gray-600 dark:text-gray-300 font-mono">
-            {ventas.length}
-          </span>
-        </h3>
+      <div className="flex items-center justify-between mb-3 border-b border-gray-200 dark:border-gray-800 pb-2">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setActiveTab('ventas')}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+              activeTab === 'ventas'
+                ? 'bg-brand-600 text-white shadow-xs'
+                : 'bg-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            <span>Ventas Realizadas</span>
+            <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
+              {ventas.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('devoluciones')}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+              activeTab === 'devoluciones'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-transparent text-gray-500 hover:text-gray-900 dark:hover:text-gray-200'
+            }`}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            <span>Devoluciones & Reingresos</span>
+            <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 text-[10px] font-mono">
+              {devoluciones.length}
+            </span>
+          </button>
+        </div>
       </div>
 
       {loading ? (
         <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-gray-200 dark:border-gray-800">
-          <p className="text-xs text-gray-400 animate-pulse">Cargando ventas y arqueo de caja...</p>
+          <p className="text-xs text-gray-400 animate-pulse">Cargando datos de caja y operaciones...</p>
         </div>
-      ) : ventas.length === 0 ? (
-        <div className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 p-8 text-center">
-          <ShoppingBag className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600 mb-2" />
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            No se registraron ventas en el período seleccionado
-          </p>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            Usa el botón de arriba para cambiar el filtro a "Historial Completo" o cobra una nueva venta en el POS.
-          </p>
-        </div>
+      ) : activeTab === 'devoluciones' ? (
+        /* ============================================================ */
+        /* LISTADO DE DEVOLUCIONES Y REINGRESOS DE STOCK */
+        /* ============================================================ */
+        devoluciones.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 p-8 text-center">
+            <RotateCcw className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              No se registraron devoluciones en este período
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Todas las devoluciones procesadas desde la pestaña "Devoluciones" aparecerán aquí con el dinero reintegrado y el reingreso de mercadería.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {devoluciones.map((dev) => (
+              <div
+                key={dev.id}
+                className="overflow-hidden rounded-2xl border border-amber-200/70 dark:border-amber-900/40 bg-white dark:bg-gray-900 shadow-2xs transition"
+              >
+                <div className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold text-gray-900 dark:text-gray-100">
+                          Devolución de Venta: {dev.numero_operacion}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <PackagePlus className="h-3 w-3" />
+                          <span>Mercadería Repuesta en Stock</span>
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500 dark:text-gray-400">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(dev.fecha).toLocaleString('es-AR')}
+                        </span>
+                        <span>• Registró: {dev.registrado_por_nombre}</span>
+                        {dev.autorizado_por_nombre && (
+                          <span>• Autorizó: {dev.autorizado_por_nombre}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold uppercase text-rose-500 block">
+                        Reintegro al Cliente
+                      </span>
+                      <span className="text-base sm:text-lg font-black text-rose-600 dark:text-rose-400">
+                        -${dev.importe.toLocaleString('es-AR')} ARS
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs">
+                      <span className="font-semibold text-gray-700 dark:text-gray-300">Motivo: </span>
+                      <span className="text-gray-600 dark:text-gray-400 italic">{dev.motivo}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-gray-700 dark:text-gray-300 capitalize">
+                      <span className="text-gray-400 font-normal">Medio:</span>
+                      <span className="rounded-md bg-gray-100 dark:bg-gray-800 px-2 py-0.5">
+                        {dev.medio}
+                      </span>
+                      {dev.referencia_externa && (
+                        <span className="font-mono text-[11px] text-gray-500">
+                          (Ref: {dev.referencia_externa})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Detalle de prendas reingresadas */}
+                  {dev.items && dev.items.length > 0 && (
+                    <div className="mt-3 rounded-xl bg-gray-50 dark:bg-gray-950/60 p-2.5 border border-gray-100 dark:border-gray-800">
+                      <span className="text-[11px] font-bold text-gray-700 dark:text-gray-300 block mb-1">
+                        Prendas reincorporadas al inventario:
+                      </span>
+                      <div className="space-y-1">
+                        {dev.items.map((it, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-xs py-0.5"
+                          >
+                            <span className="text-gray-800 dark:text-gray-200">
+                              <strong>+{it.cantidad} u.</strong> {it.producto_nombre || 'Producto'} {it.talle ? `(${it.talle})` : ''} {it.color ? `(${it.color})` : ''}
+                            </span>
+                            <span className="font-mono text-gray-600 dark:text-gray-400">
+                              Subtotal: ${it.subtotal.toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : (
-        <div className="space-y-3">
+        /* ============================================================ */
+        /* LISTADO DE VENTAS REGISTRADAS */
+        /* ============================================================ */
+        ventas.length === 0 ? (
+          <div className="rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 p-8 text-center">
+            <ShoppingBag className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              No se registraron ventas en el período seleccionado
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              Usa el botón de arriba para cambiar el filtro a "Historial Completo" o cobra una nueva venta en el POS.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
           {ventas.map((venta) => {
             const isExpanded = expandedSaleId === venta.id;
             const primerPago = venta.pagos?.[0];
@@ -373,9 +594,9 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
                         <span>{primerPago?.medio || 'Manual'}</span>
                       </span>
 
-                      {primerPago?.medio === 'efectivo' && primerPago.vuelto > 0 && (
+                      {primerPago?.medio === 'efectivo' && (primerPago.vuelto ?? 0) > 0 && (
                         <span className="text-[11px] text-gray-500 dark:text-gray-400 font-mono">
-                          (Recibido ${primerPago.importe_recibido?.toLocaleString('es-AR')} • Vuelto ${primerPago.vuelto.toLocaleString('es-AR')})
+                          (Recibido ${primerPago.importe_recibido?.toLocaleString('es-AR')} • Vuelto ${primerPago.vuelto?.toLocaleString('es-AR')})
                         </span>
                       )}
 
@@ -438,6 +659,7 @@ export const SalesHistoryPage: React.FC<SalesHistoryPageProps> = ({
             );
           })}
         </div>
+        )
       )}
     </div>
   );

@@ -366,7 +366,19 @@ export class CatalogService {
         v.id, v.sku, v.codigo, v.modelo, v.talle, v.color, v.precio, 
         v.stock_actual, v.stock_minimo, v.etiqueta_desactualizada, v.estado,
         p.id AS producto_id, p.nombre AS producto_nombre, p.descripcion AS producto_descripcion,
-        p.imagenes AS producto_imagenes, c.nombre AS categoria_nombre
+        p.imagenes AS producto_imagenes, c.nombre AS categoria_nombre,
+        (
+          SELECT json_build_object(
+            'tipo', sm.tipo,
+            'cantidad', sm.cantidad,
+            'motivo', sm.motivo,
+            'fecha', sm.fecha
+          )
+          FROM stock_movements sm
+          WHERE sm.variant_id = v.id
+          ORDER BY sm.fecha DESC
+          LIMIT 1
+        ) AS ultimo_movimiento
       FROM product_variants v
       INNER JOIN products p ON v.product_id = p.id
       INNER JOIN categories c ON p.category_id = c.id
@@ -406,6 +418,7 @@ export class CatalogService {
             stock_minimo: stockMinimo,
             etiqueta_desactualizada: row.etiqueta_desactualizada,
             estado: row.estado,
+            ultimo_movimiento: row.ultimo_movimiento,
           }
         : {
             disponibilidad: getDisponibilidadPublica(stock, stockMinimo),

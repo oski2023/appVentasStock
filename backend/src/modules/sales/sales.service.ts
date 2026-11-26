@@ -417,6 +417,81 @@ export class SalesService {
     const summaryResult = await pool.query(summarySql, values);
     const summaryRow = summaryResult.rows[0];
 
+    // Resumen y lista de devoluciones / reintegros en el mismo período
+    const refundConditions: string[] = ['1=1'];
+    const refundValues: any[] = [];
+    let rIdx = 1;
+
+    if (query.desde) {
+      refundConditions.push(`r.fecha >= $${rIdx++}`);
+      refundValues.push(query.desde);
+    }
+    if (query.hasta) {
+      refundConditions.push(`r.fecha <= $${rIdx++}`);
+      refundValues.push(query.hasta);
+    }
+
+    const refundSummarySql = `
+      SELECT 
+        COUNT(r.id)::int AS total_devoluciones,
+        COALESCE(SUM(r.importe), 0) AS total_reintegros,
+        COALESCE(SUM(r.importe) FILTER (WHERE r.medio = 'efectivo'), 0) AS reintegros_efectivo,
+        COALESCE(SUM(r.importe) FILTER (WHERE r.medio = 'transferencia'), 0) AS reintegros_transferencia,
+        COALESCE(SUM(r.importe) FILTER (WHERE r.medio = 'cambio'), 0) AS cambios_prendas
+      FROM refunds r
+      WHERE ${refundConditions.join(' AND ')}
+    `;
+
+    const refundSummaryResult = await pool.query(refundSummarySql, refundValues);
+    const refundSummaryRow = refundSummaryResult.rows[0];
+
+    // Consulta detallada de devoluciones con ítems y prendas
+    const refundListSql = `
+      SELECT 
+        r.id, r.sale_id, r.importe, r.medio, r.referencia_externa, r.motivo, r.fecha,
+        s.numero_operacion,
+        u.nombre AS registrado_por_nombre,
+        ua.nombre AS autorizado_por_nombre,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'variant_id', pv.id,
+                'cantidad', (elem->>'cantidad')::int,
+                'precio_unitario', (elem->>'precio_unitario')::numeric,
+                'subtotal', (elem->>'subtotal')::numeric,
+                'producto_nombre', p.nombre,
+                'sku', pv.sku,
+                'codigo', pv.codigo,
+                'talle', pv.talle,
+                'color', pv.color
+              )
+            )
+            FROM jsonb_array_elements(r.items) elem
+            LEFT JOIN product_variants pv ON pv.id = (elem->>'variant_id')::uuid
+            LEFT JOIN products p ON pv.product_id = p.id
+          ),
+          '[]'::json
+        ) AS items
+      FROM refunds r
+      INNER JOIN sales s ON r.sale_id = s.id
+      INNER JOIN users u ON r.registrado_por = u.id
+      LEFT JOIN users ua ON r.autorizado_por = ua.id
+      WHERE ${refundConditions.join(' AND ')}
+      ORDER BY r.fecha DESC
+    `;
+
+    const refundListResult = await pool.query(refundListSql, refundValues);
+    const devoluciones = refundListResult.rows.map((r) => ({
+      ...r,
+      importe: parseFloat(r.importe),
+      items: (r.items || []).map((it: any) => ({
+        ...it,
+        precio_unitario: parseFloat(it.precio_unitario),
+        subtotal: parseFloat(it.subtotal),
+      })),
+    }));
+
     // Consulta principal de ventas con detalle de prendas y pagos
     const sql = `
       SELECT 
@@ -475,6 +550,23 @@ export class SalesService {
     const salesValues = [...values, query.limit, query.offset];
     const { rows } = await pool.query(sql, salesValues);
 
+    const totalGeneralVentas = parseFloat(summaryRow?.total_general || 0);
+    const totalEfectivoVentas = parseFloat(summaryRow?.total_efectivo || 0);
+    const totalTransferenciaVentas = parseFloat(summaryRow?.total_transferencia || 0);
+    const totalPosnetVentas = parseFloat(summaryRow?.total_posnet || 0);
+    const efectivoRecibido = parseFloat(summaryRow?.efectivo_recibido || 0);
+    const efectivoVuelto = parseFloat(summaryRow?.efectivo_vuelto || 0);
+
+    const totalDevoluciones = refundSummaryRow?.total_devoluciones || 0;
+    const totalReintegros = parseFloat(refundSummaryRow?.total_reintegros || 0);
+    const reintegrosEfectivo = parseFloat(refundSummaryRow?.reintegros_efectivo || 0);
+    const reintegrosTransferencia = parseFloat(refundSummaryRow?.reintegros_transferencia || 0);
+    const cambiosPrendas = parseFloat(refundSummaryRow?.cambios_prendas || 0);
+
+    const totalNeto = totalGeneralVentas - totalReintegros;
+    const efectivoNetoCaja = totalEfectivoVentas - reintegrosEfectivo;
+    const transferenciaNeta = totalTransferenciaVentas - reintegrosTransferencia;
+
     return {
       ventas: rows.map((r) => ({
         ...r,
@@ -492,14 +584,25 @@ export class SalesService {
           vuelto: parseFloat(p.vuelto || 0),
         })),
       })),
+      devoluciones,
       cierre_caja: {
         total_operaciones: summaryRow?.total_operaciones || 0,
-        total_general: parseFloat(summaryRow?.total_general || 0),
-        total_efectivo: parseFloat(summaryRow?.total_efectivo || 0),
-        total_transferencia: parseFloat(summaryRow?.total_transferencia || 0),
-        total_posnet: parseFloat(summaryRow?.total_posnet || 0),
-        efectivo_recibido: parseFloat(summaryRow?.efectivo_recibido || 0),
-        efectivo_vuelto: parseFloat(summaryRow?.efectivo_vuelto || 0),
+        total_general: totalGeneralVentas,
+        total_efectivo: totalEfectivoVentas,
+        total_transferencia: totalTransferenciaVentas,
+        total_posnet: totalPosnetVentas,
+        efectivo_recibido: efectivoRecibido,
+        efectivo_vuelto: efectivoVuelto,
+        // Devoluciones y Reintegros
+        total_devoluciones: totalDevoluciones,
+        total_reintegros: totalReintegros,
+        reintegros_efectivo: reintegrosEfectivo,
+        reintegros_transferencia: reintegrosTransferencia,
+        cambios_prendas: cambiosPrendas,
+        // Saldos Netos
+        total_neto: totalNeto,
+        efectivo_neto_caja: efectivoNetoCaja,
+        transferencia_neta: transferenciaNeta,
       },
     };
   }

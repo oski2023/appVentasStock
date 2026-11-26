@@ -1204,7 +1204,14 @@ export const AdminPage: React.FC = () => {
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px] text-gray-500 mt-1">
-                      <span className="capitalize font-medium">Tipo: {m.tipo}</span>
+                      <span className="capitalize font-medium flex items-center gap-1">
+                        Tipo: {m.tipo}
+                        {m.tipo === 'devolucion' && (
+                          <span className="rounded bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[10px] font-bold">
+                            Devolución de Venta
+                          </span>
+                        )}
+                      </span>
                       <span>Stock: {m.stock_anterior} → <strong>{m.stock_nuevo}</strong></span>
                     </div>
                     <div className="text-[10px] text-gray-400 mt-0.5 flex justify-between">

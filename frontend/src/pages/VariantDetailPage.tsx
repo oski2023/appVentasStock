@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, ShoppingCart, AlertCircle, Plus, Minus, Check, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ShoppingCart, AlertCircle, Plus, Minus, Check, ArrowRight, PackagePlus } from 'lucide-react';
 import { ApiClient } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -161,6 +161,19 @@ export const VariantDetailPage: React.FC<VariantDetailPageProps> = ({
               alt={variant.producto.nombre}
               className="h-full w-full object-cover"
             />
+          </div>
+        )}
+
+        {/* Indicador de reingreso reciente por devolución (para staff) */}
+        {isStaff && variant.ultimo_movimiento?.tipo === 'devolucion' && (
+          <div className="my-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 p-2.5 flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300">
+            <PackagePlus className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <span className="font-bold">Mercadería reincorporada por Devolución</span>
+              <span className="block text-[11px] text-emerald-700 dark:text-emerald-400 mt-0.5">
+                +{variant.ultimo_movimiento.cantidad} u. repuesta el {new Date(variant.ultimo_movimiento.fecha).toLocaleString('es-AR')}
+              </span>
+            </div>
           </div>
         )}
 

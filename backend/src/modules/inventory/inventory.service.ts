@@ -216,7 +216,19 @@ export class InventoryService {
       SELECT 
         v.id, v.sku, v.codigo, v.modelo, v.talle, v.color, v.precio,
         v.stock_actual, v.stock_minimo, v.etiqueta_desactualizada,
-        p.id AS producto_id, p.nombre AS producto_nombre, c.nombre AS categoria_nombre
+        p.id AS producto_id, p.nombre AS producto_nombre, c.nombre AS categoria_nombre,
+        (
+          SELECT json_build_object(
+            'tipo', sm.tipo,
+            'cantidad', sm.cantidad,
+            'motivo', sm.motivo,
+            'fecha', sm.fecha
+          )
+          FROM stock_movements sm
+          WHERE sm.variant_id = v.id
+          ORDER BY sm.fecha DESC
+          LIMIT 1
+        ) AS ultimo_movimiento
       FROM product_variants v
       INNER JOIN products p ON v.product_id = p.id
       INNER JOIN categories c ON p.category_id = c.id
@@ -234,6 +246,7 @@ export class InventoryService {
       stock_actual: parseInt(r.stock_actual, 10),
       stock_minimo: parseInt(r.stock_minimo, 10),
       alerta_bajo_stock: parseInt(r.stock_actual, 10) <= parseInt(r.stock_minimo, 10),
+      ultimo_movimiento: r.ultimo_movimiento,
     }));
   }
 }
