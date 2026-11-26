@@ -6,8 +6,13 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0', // Accesible desde dispositivos móviles en la misma red local
+    allowedHosts: true,
     proxy: {
       '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/uploads': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

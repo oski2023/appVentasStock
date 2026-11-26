@@ -35,9 +35,9 @@ export const salesListQuerySchema = z.object({
     .enum(['pendiente_pago', 'pagada', 'pagada_sin_stock', 'entregada', 'cancelada', 'devuelta'])
     .optional(),
   vendedor_id: z.string().uuid().optional(),
-  desde: z.string().datetime().optional(),
-  hasta: z.string().datetime().optional(),
-  limit: z.coerce.number().int().positive().default(20),
+  desde: z.string().optional(),
+  hasta: z.string().optional(),
+  limit: z.coerce.number().int().positive().default(50),
   offset: z.coerce.number().int().nonnegative().default(0),
 });
 

@@ -14,6 +14,7 @@ import {
 import { ApiClient } from '../services/api';
 import { QrScannerModal } from '../components/scanner/QrScannerModal';
 import { useAuth } from '../context/AuthContext';
+import { parseCurrencyAr, formatCurrencyAr } from '../utils/currency';
 
 export interface CartItem {
   variant_id: string;
@@ -52,6 +53,26 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
   const handleAddItemByCode = async (code: string) => {
     setErrorMsg(null);
     setSearchLoading(true);
+    const cleanCode = code.trim().toUpperCase();
+
+    // Si es un código de pedido de cliente armado en su celular (RF-07, RF-25)
+    if (cleanCode.startsWith('PED-')) {
+      try {
+        const order = await ApiClient.get<any>(`/sales/customer-orders/${encodeURIComponent(cleanCode)}`);
+        if (order && Array.isArray(order.items) && order.items.length > 0) {
+          setCart(order.items);
+          setSearchQuery('');
+          alert(`¡Pedido ${order.orderNumber} cargado con éxito en la caja! (${order.items.length} prendas)`);
+          return;
+        }
+      } catch (err: any) {
+        setErrorMsg(err.message || `No se encontró el pedido ${cleanCode}`);
+        return;
+      } finally {
+        setSearchLoading(false);
+      }
+    }
+
     try {
       const variant = await ApiClient.get(`/catalog/variants/by-code/${encodeURIComponent(code)}`);
       
@@ -121,7 +142,7 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
   };
 
   const total = cart.reduce((acc, it) => acc + it.precio * it.cantidad, 0);
-  const recibidoNum = parseFloat(importeRecibido) || 0;
+  const recibidoNum = parseCurrencyAr(importeRecibido);
   const vuelto = medioPago === 'efectivo' && recibidoNum >= total ? recibidoNum - total : 0;
 
   const handleOpenCheckout = () => {
@@ -187,21 +208,21 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar SKU, código de variante..."
-              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 pl-9 text-sm focus:border-brand-500 focus:outline-none"
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-3 py-2.5 pl-9 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand-500 focus:outline-none transition-colors"
             />
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400 dark:text-gray-500" />
           </div>
           <button
             type="submit"
             disabled={searchLoading || !searchQuery.trim()}
-            className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 disabled:opacity-50"
+            className="rounded-xl bg-gray-900 dark:bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800 dark:hover:bg-brand-700 disabled:opacity-50"
           >
             {searchLoading ? '...' : 'Agregar'}
           </button>
         </form>
 
         {errorMsg && (
-          <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700">
+          <div className="mt-3 flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-950/60 p-3 text-xs text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900">
             <AlertCircle className="h-4 w-4 flex-shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -211,13 +232,13 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
       {/* Lista del Carrito */}
       <div className="mt-4 px-4">
         <div className="flex items-center justify-between pb-2">
-          <h2 className="text-sm font-bold text-gray-800">
+          <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200">
             Productos en venta ({cart.reduce((a, b) => a + b.cantidad, 0)})
           </h2>
           {cart.length > 0 && (
             <button
               onClick={() => setCart([])}
-              className="text-xs text-red-600 hover:underline"
+              className="text-xs text-red-600 dark:text-red-400 hover:underline"
             >
               Vaciar venta
             </button>
@@ -225,10 +246,10 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
         </div>
 
         {cart.length === 0 ? (
-          <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 p-8 text-center">
-            <Camera className="h-10 w-10 text-gray-300 mb-2" />
-            <p className="text-sm font-medium text-gray-600">El carrito de venta está vacío</p>
-            <p className="mt-1 text-xs text-gray-400 max-w-xs">
+          <div className="mt-6 flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-800 p-8 text-center">
+            <Camera className="h-10 w-10 text-gray-300 dark:text-gray-600 mb-2" />
+            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">El carrito de venta está vacío</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 max-w-xs">
               Usa el botón "Escanear QR" con la cámara de tu tablet o celular para agregar productos.
             </p>
           </div>
@@ -237,43 +258,43 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
             {cart.map((item) => (
               <div
                 key={item.variant_id}
-                className="flex items-center justify-between rounded-2xl bg-white p-3.5 shadow-sm border border-gray-100"
+                className="flex items-center justify-between rounded-2xl bg-white dark:bg-gray-900 p-3.5 shadow-sm border border-gray-100 dark:border-gray-800"
               >
                 <div className="flex-1 pr-2">
-                  <h4 className="text-sm font-semibold text-gray-900 leading-tight">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">
                     {item.producto_nombre}
                   </h4>
-                  <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-500">
-                    <span className="font-mono bg-gray-100 px-1.5 py-0.5 rounded">
+                  <div className="mt-1 flex flex-wrap gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                    <span className="font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-gray-700 dark:text-gray-300">
                       {item.sku}
                     </span>
                     {item.talle && <span>Talle: {item.talle}</span>}
                     {item.color && <span>• {item.color}</span>}
                   </div>
-                  <div className="mt-1.5 text-xs font-bold text-brand-700">
+                  <div className="mt-1.5 text-xs font-bold text-brand-700 dark:text-brand-400">
                     ${item.precio.toLocaleString('es-AR')} c/u
                   </div>
                 </div>
 
                 <div className="flex flex-col items-end gap-2">
-                  <div className="flex items-center gap-2 rounded-xl bg-gray-50 p-1 border border-gray-200">
+                  <div className="flex items-center gap-2 rounded-xl bg-gray-50 dark:bg-gray-800 p-1 border border-gray-200 dark:border-gray-700">
                     <button
                       onClick={() => handleUpdateQuantity(item.variant_id, -1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-700 shadow-sm transition active:scale-95"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 shadow-sm transition active:scale-95"
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="w-6 text-center text-sm font-bold">{item.cantidad}</span>
+                    <span className="w-6 text-center text-sm font-bold text-gray-900 dark:text-white">{item.cantidad}</span>
                     <button
                       onClick={() => handleUpdateQuantity(item.variant_id, 1)}
-                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-700 shadow-sm transition active:scale-95"
+                      className="flex h-7 w-7 items-center justify-center rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 shadow-sm transition active:scale-95"
                     >
                       <Plus className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <button
                     onClick={() => handleRemoveItem(item.variant_id)}
-                    className="p-1 text-gray-400 hover:text-red-500"
+                    className="p-1 text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -286,17 +307,17 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
 
       {/* Resumen Fijo Inferior si hay items */}
       {cart.length > 0 && (
-        <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-gray-200 bg-white/95 p-4 shadow-lg backdrop-blur-md">
+        <div className="fixed bottom-16 left-0 right-0 z-30 border-t border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 p-4 shadow-lg backdrop-blur-md">
           <div className="mx-auto flex max-w-md items-center justify-between">
             <div>
-              <span className="text-xs text-gray-500 block">Total a cobrar (ARS)</span>
-              <span className="text-2xl font-black text-gray-900">
+              <span className="text-xs text-gray-500 dark:text-gray-400 block">Total a cobrar (ARS)</span>
+              <span className="text-2xl font-black text-gray-900 dark:text-white">
                 ${total.toLocaleString('es-AR')}
               </span>
             </div>
             <button
               onClick={handleOpenCheckout}
-              className="flex items-center gap-2 rounded-2xl bg-brand-600 px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-brand-500/25 transition active:scale-95"
+              className="flex items-center gap-2 rounded-2xl bg-brand-600 px-6 py-3.5 text-base font-bold text-white shadow-lg shadow-brand-500/25 transition active:scale-95 hover:bg-brand-700"
             >
               <DollarSign className="h-5 w-5" />
               <span>Cobrar</span>
@@ -308,10 +329,10 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
       {/* Modal de Cobro Manual */}
       {checkoutModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl">
-            <h3 className="text-lg font-bold text-gray-900">Registrar Cobro Manual</h3>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Total venta: <strong className="text-gray-800">${total.toLocaleString('es-AR')}</strong>
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-900 p-5 shadow-2xl border border-gray-100 dark:border-gray-800">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Registrar Cobro Manual</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              Total venta: <strong className="text-gray-800 dark:text-gray-200">${total.toLocaleString('es-AR')}</strong>
             </p>
 
             {/* Selector de medio de pago */}
@@ -321,8 +342,8 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                 onClick={() => setMedioPago('efectivo')}
                 className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-semibold transition ${
                   medioPago === 'efectivo'
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300'
+                    : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <DollarSign className="h-5 w-5 mb-1" />
@@ -333,8 +354,8 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                 onClick={() => setMedioPago('transferencia')}
                 className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-semibold transition ${
                   medioPago === 'transferencia'
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300'
+                    : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <Building2 className="h-5 w-5 mb-1" />
@@ -345,8 +366,8 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                 onClick={() => setMedioPago('posnet')}
                 className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-semibold transition ${
                   medioPago === 'posnet'
-                    ? 'border-brand-600 bg-brand-50 text-brand-700'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300'
+                    : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                 }`}
               >
                 <CreditCard className="h-5 w-5 mb-1" />
@@ -358,16 +379,22 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
             {medioPago === 'efectivo' ? (
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="text-xs font-medium text-gray-700 block mb-1">
+                  <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">
                     Importe Recibido ($)
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={importeRecibido}
                     onChange={(e) => setImporteRecibido(e.target.value)}
-                    className="w-full rounded-xl border border-gray-300 p-2.5 text-lg font-bold text-gray-900 focus:border-brand-500 focus:outline-none"
-                    placeholder="Monto entregado por el cliente"
+                    className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-lg font-bold text-gray-900 dark:text-white focus:border-brand-500 focus:outline-none"
+                    placeholder="Ej: 70.000 o 70000"
                   />
+                  {importeRecibido && (
+                    <p className="text-[11px] text-brand-700 dark:text-brand-400 font-semibold mt-1">
+                      Interpretado: {formatCurrencyAr(recibidoNum)}
+                    </p>
+                  )}
                 </div>
 
                 {/* Botones de denominaciones rápidas */}
@@ -377,7 +404,7 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                       key={monto}
                       type="button"
                       onClick={() => setImporteRecibido(monto.toString())}
-                      className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                      className="rounded-lg bg-gray-100 dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                     >
                       ${monto.toLocaleString('es-AR')}
                     </button>
@@ -385,11 +412,11 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                 </div>
 
                 {/* Vuelto */}
-                <div className="rounded-xl bg-gray-50 p-3 border border-gray-200 flex justify-between items-center">
-                  <span className="text-xs font-medium text-gray-600">Vuelto a entregar:</span>
+                <div className="rounded-xl bg-gray-50 dark:bg-gray-800/60 p-3 border border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Vuelto a entregar:</span>
                   <span
                     className={`text-lg font-black ${
-                      recibidoNum >= total ? 'text-brand-600' : 'text-red-500'
+                      recibidoNum >= total ? 'text-brand-600 dark:text-brand-400' : 'text-red-500'
                     }`}
                   >
                     ${vuelto.toLocaleString('es-AR')}
@@ -398,7 +425,7 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
               </div>
             ) : (
               <div className="mt-4">
-                <label className="text-xs font-medium text-gray-700 block mb-1">
+                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 block mb-1">
                   Número de Comprobante / Cupón
                 </label>
                 <input
@@ -406,7 +433,7 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
                   value={referenciaExterna}
                   onChange={(e) => setReferenciaExterna(e.target.value)}
                   placeholder="Ej: Nº de operación bancaria o cupón posnet"
-                  className="w-full rounded-xl border border-gray-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
+                  className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-sm text-gray-900 dark:text-white focus:border-brand-500 focus:outline-none"
                 />
               </div>
             )}
@@ -416,7 +443,7 @@ export const PosPage: React.FC<PosPageProps> = ({ onSaleCompleted, onNavigateLog
               <button
                 type="button"
                 onClick={() => setCheckoutModalOpen(false)}
-                className="flex-1 rounded-xl bg-gray-100 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-200"
+                className="flex-1 rounded-xl bg-gray-100 dark:bg-gray-800 py-3 text-sm font-semibold text-gray-700 dark:text-gray-300 transition hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 Cancelar
               </button>

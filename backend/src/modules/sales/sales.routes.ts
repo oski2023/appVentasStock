@@ -53,6 +53,43 @@ export async function salesRoutes(fastify: FastifyInstance, _opts: FastifyPlugin
     return reply.send(receipt);
   });
 
+  // Guardar pedido armado por cliente desde su celular (RF-07, RF-09) - Público
+  fastify.post('/customer-orders', async (request, reply) => {
+    const body = request.body as any;
+    if (!body || !Array.isArray(body.items) || body.items.length === 0) {
+      return reply.status(400).send({
+        statusCode: 400,
+        message: 'El pedido debe incluir al menos una prenda o variante.',
+      });
+    }
+
+    const randNum = Math.floor(1000 + Math.random() * 9000);
+    const orderNumber = `PED-${Date.now().toString(36).toUpperCase().slice(-4)}-${randNum}`;
+
+    const order = {
+      orderNumber,
+      items: body.items,
+      total: body.total || 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    SalesService.saveCustomerOrder(order);
+    return reply.status(201).send(order);
+  });
+
+  // Obtener pedido de cliente para cargar en la caja (RF-25) - Público / Staff
+  fastify.get('/customer-orders/:orderNumber', async (request, reply) => {
+    const { orderNumber } = request.params as { orderNumber: string };
+    const order = SalesService.getCustomerOrder(orderNumber);
+    if (!order) {
+      return reply.status(404).send({
+        statusCode: 404,
+        message: 'No se encontró el pedido o ya expiró',
+      });
+    }
+    return reply.send(order);
+  });
+
   // Marcar venta como entregada (RF-27, RN-11)
   fastify.post(
     '/verify-delivery',

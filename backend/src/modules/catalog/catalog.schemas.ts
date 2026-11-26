@@ -9,14 +9,20 @@ export const updateCategorySchema = createCategorySchema.partial().extend({
   estado: z.boolean().optional(),
 });
 
-export const createProductSchema = z.object({
-  category_id: z.number().int().positive('La categoría es obligatoria'),
+export const productBaseSchema = z.object({
+  category_id: z.number().int().positive('La categoría es obligatoria').optional(),
+  categoria_nombre: z.string().min(2, 'El nombre de la categoría debe tener al menos 2 caracteres').optional(),
   nombre: z.string().min(2, 'El nombre del producto es obligatorio'),
   descripcion: z.string().optional(),
   imagenes: z.array(z.string().url('URL de imagen no válida')).default([]),
 });
 
-export const updateProductSchema = createProductSchema.partial().extend({
+export const createProductSchema = productBaseSchema.refine(
+  data => data.category_id !== undefined || (data.categoria_nombre && data.categoria_nombre.trim().length >= 2),
+  { message: 'Debe seleccionar una categoría existente o indicar el nombre de una nueva' }
+);
+
+export const updateProductSchema = productBaseSchema.partial().extend({
   estado: z.boolean().optional(),
 });
 

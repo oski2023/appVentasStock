@@ -1,5 +1,6 @@
 import { pool, withTransaction } from '../../db/index.js';
 import { generateVariantCode, generateQrDataUrl } from '../../utils/qr.js';
+import { env } from '../../config/env.js';
 import {
   CreateCategoryInput,
   UpdateCategoryInput,
@@ -145,7 +146,7 @@ export class CatalogService {
 
     const variants = await Promise.all(
       variantRows.map(async (v) => {
-        const qrUrl = `/ficha/${v.codigo}`;
+        const qrUrl = `${env.APP_BASE_URL}/ficha/${v.codigo}`;
         const qrDataUrl = await generateQrDataUrl(qrUrl);
         const stock = parseInt(v.stock_actual, 10);
         const stockMinimo = parseInt(v.stock_minimo, 10);
@@ -181,11 +182,28 @@ export class CatalogService {
   }
 
   static async createProduct(input: CreateProductInput) {
+    let categoryId = input.category_id;
+
+    if (!categoryId && input.categoria_nombre) {
+      const cleanCat = input.categoria_nombre.trim();
+      const catRes = await pool.query(
+        `INSERT INTO categories (nombre) VALUES ($1)
+         ON CONFLICT (nombre) DO UPDATE SET updated_at = clock_timestamp()
+         RETURNING id`,
+        [cleanCat]
+      );
+      categoryId = catRes.rows[0].id;
+    }
+
+    if (!categoryId) {
+      throw new Error('Debe especificar una categoría válida');
+    }
+
     const { rows } = await pool.query(
       `INSERT INTO products (category_id, nombre, descripcion, imagenes)
        VALUES ($1, $2, $3, $4::jsonb)
        RETURNING *`,
-      [input.category_id, input.nombre, input.descripcion || null, JSON.stringify(input.imagenes)]
+      [categoryId, input.nombre, input.descripcion || null, JSON.stringify(input.imagenes || [])]
     );
     return rows[0];
   }
@@ -273,7 +291,7 @@ export class CatalogService {
         );
       }
 
-      const qrUrl = `/ficha/${variant.codigo}`;
+      const qrUrl = `${env.APP_BASE_URL}/ficha/${variant.codigo}`;
       const qrDataUrl = await generateQrDataUrl(qrUrl);
 
       return {
@@ -362,7 +380,7 @@ export class CatalogService {
     const row = rows[0];
     const stock = parseInt(row.stock_actual, 10);
     const stockMinimo = parseInt(row.stock_minimo, 10);
-    const qrUrl = `/ficha/${row.codigo}`;
+    const qrUrl = `${env.APP_BASE_URL}/ficha/${row.codigo}`;
     const qrDataUrl = await generateQrDataUrl(qrUrl);
 
     return {

@@ -14,8 +14,11 @@ import {
   Edit2,
   Save,
   X,
+  QrCode,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { ApiClient } from '../services/api';
+import { parseCurrencyAr, formatCurrencyAr } from '../utils/currency';
 
 export const AdminPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'alerts' | 'labels' | 'imports' | 'products' | 'adjust'>('alerts');
@@ -39,22 +42,27 @@ export const AdminPage: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [showNewProductModal, setShowNewProductModal] = useState(false);
-  const [newProduct, setNewProduct] = useState({ category_id: 1, nombre: '', descripcion: '' });
+  const [newProduct, setNewProduct] = useState({ category_id: 0, categoria_nombre: '', nombre: '', descripcion: '' });
+  const [productImageFile, setProductImageFile] = useState<File | null>(null);
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isCreatingNewCategory, setIsCreatingNewCategory] = useState(false);
   const [showNewVariantModal, setShowNewVariantModal] = useState(false);
   const [selectedProductForVariant, setSelectedProductForVariant] = useState<string | null>(null);
+  const [createdVariantQr, setCreatedVariantQr] = useState<any | null>(null);
   const [newVariant, setNewVariant] = useState({
     sku: '',
     modelo: '',
     talle: '',
     color: '',
-    precio: 0,
+    precioInput: '',
     stock_actual: 0,
     stock_minimo: 5,
   });
 
   // Edición rápida de precio y visualización de variantes
   const [editingVariantId, setEditingVariantId] = useState<string | null>(null);
-  const [editingPrice, setEditingPrice] = useState<number>(0);
+  const [editingPriceInput, setEditingPriceInput] = useState<string>('');
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [productVariantsMap, setProductVariantsMap] = useState<Record<string, any[]>>({});
   const [loadingVariants, setLoadingVariants] = useState(false);
@@ -131,6 +139,9 @@ export const AdminPage: React.FC = () => {
       setCategories(catsData);
       if (catsData.length > 0) {
         setNewProduct((prev) => ({ ...prev, category_id: catsData[0].id }));
+        setIsCreatingNewCategory(false);
+      } else {
+        setIsCreatingNewCategory(true);
       }
     } catch (err) {
       console.error(err);
@@ -166,12 +177,71 @@ export const AdminPage: React.FC = () => {
   }, [activeTab]);
 
   // Handlers Productos y Variantes
+  const handleUploadProductImage = async (file: File): Promise<string | null> => {
+    setUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await ApiClient.post<{ url: string }>('/catalog/upload-image', formData);
+      return res.url;
+    } catch (err: any) {
+      alert(err.message || 'Error al subir la imagen');
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleUpdateExistingProductImage = async (productId: string, file: File) => {
+    const uploadedUrl = await handleUploadProductImage(file);
+    if (!uploadedUrl) return;
+    try {
+      await ApiClient.put(`/catalog/products/${productId}`, {
+        imagenes: [uploadedUrl],
+      });
+      fetchProductsAndCategories();
+    } catch (err: any) {
+      alert(err.message || 'Error al actualizar imagen del producto');
+    }
+  };
+
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await ApiClient.post('/catalog/products', newProduct);
+      let imageUrls: string[] = [];
+      if (productImageFile) {
+        const uploadedUrl = await handleUploadProductImage(productImageFile);
+        if (uploadedUrl) {
+          imageUrls.push(uploadedUrl);
+        }
+      }
+
+      const payload: any = {
+        nombre: newProduct.nombre.trim(),
+        descripcion: newProduct.descripcion?.trim() || undefined,
+        imagenes: imageUrls,
+      };
+
+      if (isCreatingNewCategory || categories.length === 0) {
+        if (!newProduct.categoria_nombre.trim()) {
+          alert('Debe ingresar el nombre de la categoría');
+          return;
+        }
+        payload.categoria_nombre = newProduct.categoria_nombre.trim();
+      } else {
+        payload.category_id = newProduct.category_id;
+      }
+
+      await ApiClient.post('/catalog/products', payload);
       setShowNewProductModal(false);
-      setNewProduct({ category_id: categories[0]?.id || 1, nombre: '', descripcion: '' });
+      setNewProduct({
+        category_id: categories[0]?.id || 0,
+        categoria_nombre: '',
+        nombre: '',
+        descripcion: '',
+      });
+      setProductImageFile(null);
+      setProductImagePreview(null);
       fetchProductsAndCategories();
     } catch (err: any) {
       alert(err.message || 'Error al crear producto');
@@ -181,27 +251,57 @@ export const AdminPage: React.FC = () => {
   const handleCreateVariant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductForVariant) return;
+
+    const parsedPrice = parseCurrencyAr(newVariant.precioInput);
+    if (parsedPrice <= 0) {
+      alert('Debe ingresar un precio válido mayor a 0 (ej: 67.999 o 68000)');
+      return;
+    }
+
     try {
-      await ApiClient.post(`/catalog/products/${selectedProductForVariant}/variants`, newVariant);
+      const created = await ApiClient.post<any>(`/catalog/products/${selectedProductForVariant}/variants`, {
+        sku: newVariant.sku.trim(),
+        modelo: newVariant.modelo.trim() || undefined,
+        talle: newVariant.talle.trim() || undefined,
+        color: newVariant.color.trim() || undefined,
+        precio: parsedPrice,
+        stock_actual: newVariant.stock_actual,
+        stock_minimo: newVariant.stock_minimo,
+      });
+
+      const currentProd = products.find((p) => p.id === selectedProductForVariant);
+
       setShowNewVariantModal(false);
       setNewVariant({
         sku: '',
         modelo: '',
         talle: '',
         color: '',
-        precio: 0,
+        precioInput: '',
         stock_actual: 0,
         stock_minimo: 5,
       });
       fetchProductsAndCategories();
+
+      // Desplegar modal con el código QR recién generado
+      setCreatedVariantQr({
+        ...created,
+        producto_nombre: currentProd?.nombre || 'Producto',
+      });
     } catch (err: any) {
       alert(err.message || 'Error al crear variante');
     }
   };
 
   const handleUpdatePrice = async (variantId: string, productId: string) => {
+    const parsedPrice = parseCurrencyAr(editingPriceInput);
+    if (parsedPrice <= 0) {
+      alert('Debe ingresar un precio válido mayor a 0 (ej: 67.999 o 68000)');
+      return;
+    }
+
     try {
-      await ApiClient.put(`/catalog/variants/${variantId}`, { precio: editingPrice });
+      await ApiClient.put(`/catalog/variants/${variantId}`, { precio: parsedPrice });
       setEditingVariantId(null);
       // Recargar variantes del producto expandido
       const prodData = await ApiClient.get(`/catalog/products/${productId}`);
@@ -464,12 +564,51 @@ export const AdminPage: React.FC = () => {
             products.map((prod) => (
               <div key={prod.id} className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100">
                 <div className="flex justify-between items-start border-b pb-2.5">
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
-                      {prod.categoria_nombre}
-                    </span>
-                    <h3 className="text-base font-bold text-gray-900 mt-1">{prod.nombre}</h3>
-                    {prod.descripcion && <p className="text-xs text-gray-500 mt-0.5">{prod.descripcion}</p>}
+                  <div className="flex items-start gap-3">
+                    {prod.imagenes && prod.imagenes[0] ? (
+                      <div className="relative group">
+                        <img
+                          src={prod.imagenes[0]}
+                          alt={prod.nombre}
+                          className="h-14 w-14 rounded-xl object-cover border border-gray-200 shadow-2xs"
+                        />
+                        <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 cursor-pointer transition text-white">
+                          <ImageIcon className="h-4 w-4" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleUpdateExistingProductImage(prod.id, file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                    ) : (
+                      <label
+                        className="flex h-14 w-14 cursor-pointer items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-brand-500 hover:text-brand-600 transition"
+                        title="Subir foto del producto"
+                      >
+                        <ImageIcon className="h-5 w-5" />
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUpdateExistingProductImage(prod.id, file);
+                          }}
+                        />
+                      </label>
+                    )}
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
+                        {prod.categoria_nombre}
+                      </span>
+                      <h3 className="text-base font-bold text-gray-900 mt-1">{prod.nombre}</h3>
+                      {prod.descripcion && <p className="text-xs text-gray-500 mt-0.5">{prod.descripcion}</p>}
+                    </div>
                   </div>
                   <button
                     onClick={() => {
@@ -529,12 +668,12 @@ export const AdminPage: React.FC = () => {
                               {editingVariantId === v.id ? (
                                 <div className="flex items-center gap-1">
                                   <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={editingPrice}
-                                    onChange={(e) => setEditingPrice(parseFloat(e.target.value) || 0)}
-                                    className="w-20 rounded-lg border border-brand-500 p-1 text-right text-xs font-bold"
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={editingPriceInput}
+                                    onChange={(e) => setEditingPriceInput(e.target.value)}
+                                    placeholder="Ej: 67.999"
+                                    className="w-24 rounded-lg border border-brand-500 p-1 text-right text-xs font-bold"
                                   />
                                   <button
                                     onClick={() => handleUpdatePrice(v.id, prod.id)}
@@ -553,13 +692,26 @@ export const AdminPage: React.FC = () => {
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() =>
+                                      setCreatedVariantQr({
+                                        ...v,
+                                        producto_nombre: prod.nombre,
+                                      })
+                                    }
+                                    className="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-700 hover:bg-gray-200"
+                                    title="Ver Código QR"
+                                  >
+                                    <QrCode className="h-3.5 w-3.5 text-brand-600" />
+                                    <span>Ver QR</span>
+                                  </button>
                                   <span className="font-black text-gray-900">
                                     ${v.precio?.toLocaleString('es-AR')}
                                   </span>
                                   <button
                                     onClick={() => {
                                       setEditingVariantId(v.id);
-                                      setEditingPrice(v.precio);
+                                      setEditingPriceInput(v.precio.toString());
                                     }}
                                     className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
                                     title="Editar precio"
@@ -591,18 +743,52 @@ export const AdminPage: React.FC = () => {
                 </div>
                 <form onSubmit={handleCreateProduct} className="space-y-3">
                   <div>
-                    <label className="text-xs font-semibold text-gray-700 block mb-1">Categoría</label>
-                    <select
-                      value={newProduct.category_id}
-                      onChange={(e) => setNewProduct({ ...newProduct, category_id: parseInt(e.target.value, 10) })}
-                      className="w-full rounded-xl border border-gray-300 p-2 text-xs"
-                    >
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.nombre}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-gray-700">Categoría</label>
+                      {categories.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCreatingNewCategory(!isCreatingNewCategory)}
+                          className="text-[11px] font-bold text-brand-600 hover:underline"
+                        >
+                          {isCreatingNewCategory ? 'Seleccionar existente' : '+ Nueva Categoría'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isCreatingNewCategory || categories.length === 0 ? (
+                      <div>
+                        <input
+                          type="text"
+                          value={newProduct.categoria_nombre}
+                          onChange={(e) =>
+                            setNewProduct({ ...newProduct, categoria_nombre: e.target.value })
+                          }
+                          placeholder="Nombre de la nueva categoría (ej: Ropa deportiva)"
+                          className="w-full rounded-xl border border-brand-500 p-2 text-xs focus:outline-none"
+                          required
+                        />
+                        {categories.length === 0 && (
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Aún no hay categorías creadas. Escribe una para crearla automáticamente.
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <select
+                        value={newProduct.category_id}
+                        onChange={(e) =>
+                          setNewProduct({ ...newProduct, category_id: parseInt(e.target.value, 10) })
+                        }
+                        className="w-full rounded-xl border border-gray-300 p-2 text-xs"
+                      >
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-700 block mb-1">Nombre del Producto</label>
@@ -624,19 +810,80 @@ export const AdminPage: React.FC = () => {
                       rows={2}
                     />
                   </div>
+
+                  {/* Selector de Foto del Producto */}
+                  <div>
+                    <label className="text-xs font-semibold text-gray-700 block mb-1">
+                      Foto del Producto (Opcional - Se guarda por ruta liviana)
+                    </label>
+                    {productImagePreview ? (
+                      <div className="relative mb-2 rounded-xl border border-gray-200 p-2 flex items-center gap-3 bg-gray-50">
+                        <img
+                          src={productImagePreview}
+                          alt="Vista previa"
+                          className="h-14 w-14 rounded-lg object-cover border border-gray-200"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 truncate">
+                            {productImageFile?.name}
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            {(productImageFile ? productImageFile.size / 1024 : 0).toFixed(1)} KB
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductImageFile(null);
+                            setProductImagePreview(null);
+                          }}
+                          className="rounded-lg p-1 text-gray-400 hover:bg-gray-200 hover:text-red-600"
+                          title="Quitar foto"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 p-3 hover:border-brand-500 hover:bg-brand-50/30 transition">
+                        <ImageIcon className="h-6 w-6 text-gray-400 mb-1" />
+                        <span className="text-xs font-semibold text-gray-600">
+                          Seleccionar o tomar foto
+                        </span>
+                        <span className="text-[10px] text-gray-400">JPG, PNG o WebP</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              setProductImageFile(file);
+                              setProductImagePreview(URL.createObjectURL(file));
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => setShowNewProductModal(false)}
+                      onClick={() => {
+                        setShowNewProductModal(false);
+                        setProductImageFile(null);
+                        setProductImagePreview(null);
+                      }}
                       className="flex-1 rounded-xl bg-gray-100 py-2.5 text-xs font-semibold text-gray-700"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="flex-1 rounded-xl bg-brand-600 py-2.5 text-xs font-bold text-white hover:bg-brand-700"
+                      disabled={uploadingImage}
+                      className="flex-1 rounded-xl bg-brand-600 py-2.5 text-xs font-bold text-white hover:bg-brand-700 disabled:opacity-50"
                     >
-                      Guardar Producto
+                      {uploadingImage ? 'Subiendo imagen...' : 'Guardar Producto'}
                     </button>
                   </div>
                 </form>
@@ -691,14 +938,19 @@ export const AdminPage: React.FC = () => {
                   <div>
                     <label className="text-xs font-semibold text-gray-700 block mb-1">Precio Final ARS (IVA inc.)</label>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={newVariant.precio}
-                      onChange={(e) => setNewVariant({ ...newVariant, precio: parseFloat(e.target.value) || 0 })}
-                      className="w-full rounded-xl border border-gray-300 p-2 text-xs font-bold"
+                      type="text"
+                      inputMode="decimal"
+                      value={newVariant.precioInput}
+                      onChange={(e) => setNewVariant({ ...newVariant, precioInput: e.target.value })}
+                      placeholder="Ej: 67.999 o 68000"
+                      className="w-full rounded-xl border border-gray-300 p-2 text-xs font-bold text-gray-900 focus:border-brand-500 focus:outline-none"
                       required
                     />
+                    {newVariant.precioInput && (
+                      <p className="text-[11px] text-brand-700 font-semibold mt-1">
+                        Interpretado: {formatCurrencyAr(parseCurrencyAr(newVariant.precioInput))}
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -738,6 +990,80 @@ export const AdminPage: React.FC = () => {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* Modal Visualizador / Confirmación de Código QR Generado */}
+          {createdVariantQr && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl text-center border border-gray-100 animate-in fade-in zoom-in-95 duration-150">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 mb-3">
+                  <QrCode className="h-7 w-7" />
+                </div>
+                <h3 className="text-base font-bold text-gray-900">
+                  ¡Código QR Generado con Éxito!
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Variante asociada a <strong>{createdVariantQr.producto_nombre}</strong>
+                </p>
+
+                {/* QR Image Box */}
+                <div className="my-4 flex flex-col items-center justify-center rounded-2xl bg-gray-50 p-4 border border-gray-100">
+                  {createdVariantQr.qr_code ? (
+                    <img
+                      src={createdVariantQr.qr_code}
+                      alt={`QR ${createdVariantQr.sku}`}
+                      className="h-44 w-44 rounded-xl bg-white p-2 shadow-sm border border-gray-200"
+                    />
+                  ) : (
+                    <div className="h-44 w-44 flex items-center justify-center text-xs text-gray-400">
+                      Cargando QR...
+                    </div>
+                  )}
+                  <span className="mt-2.5 font-mono text-xs font-black text-gray-800 bg-white px-2 py-0.5 rounded border border-gray-200 shadow-2xs">
+                    {createdVariantQr.sku}
+                  </span>
+                  <div className="mt-1 flex items-center gap-2 text-[11px] text-gray-500 font-medium">
+                    {createdVariantQr.talle && <span>Talle: <strong>{createdVariantQr.talle}</strong></span>}
+                    {createdVariantQr.color && <span>• Color: <strong>{createdVariantQr.color}</strong></span>}
+                    <span>• Código: <span className="font-mono">{createdVariantQr.codigo}</span></span>
+                  </div>
+                  <span className="mt-1.5 text-sm font-black text-brand-700">
+                    ${createdVariantQr.precio?.toLocaleString('es-AR')} ARS
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {createdVariantQr.qr_code && (
+                    <a
+                      href={createdVariantQr.qr_code}
+                      download={`QR_${createdVariantQr.sku}.png`}
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 py-2.5 text-xs font-bold text-white hover:bg-gray-800 transition"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Descargar Imagen QR (PNG)</span>
+                    </a>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setCreatedVariantQr(null);
+                      setActiveTab('labels');
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-100 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-200 transition"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    <span>Ir a Imprimir en Plancha A4</span>
+                  </button>
+
+                  <button
+                    onClick={() => setCreatedVariantQr(null)}
+                    className="w-full rounded-xl py-2 text-xs font-bold text-brand-700 hover:bg-brand-50 transition"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             </div>
           )}

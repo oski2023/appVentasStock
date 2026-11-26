@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import { pool } from '../../db/index.js';
 import { generateQrBuffer } from '../../utils/qr.js';
 import { PrintLabelsInput } from './labels.schemas.js';
+import { env } from '../../config/env.js';
 
 // Factores de conversión: 1 mm = 72 / 25.4 puntos tipográficos = ~2.83465 pt
 const MM_TO_PT = 72 / 25.4;
@@ -43,7 +44,7 @@ export class LabelsService {
       const v = variantMap.get(item.variant_id);
       if (!v) continue;
 
-      const qrUrl = `/ficha/${v.codigo}`;
+      const qrUrl = `${env.APP_BASE_URL}/ficha/${v.codigo}`;
       const qrBuffer = await generateQrBuffer(qrUrl);
       const precio = parseFloat(v.precio);
 

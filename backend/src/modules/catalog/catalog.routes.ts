@@ -1,4 +1,8 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest } from 'fastify';
+import fs from 'fs';
+import path from 'path';
+import { pipeline } from 'stream/promises';
+import { uploadsDir } from '../../server.js';
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -70,6 +74,41 @@ export async function catalogRoutes(fastify: FastifyInstance, _opts: FastifyPlug
   );
 
   // ===================== PRODUCTOS =====================
+  // Subida de imagen de producto (RF-16) - Guarda la foto en disco y devuelve la ruta
+  fastify.post(
+    '/upload-image',
+    { preHandler: [authenticate, authorizeRoles(['admin', 'vendedor'])] },
+    async (request, reply) => {
+      try {
+        const data = await request.file();
+        if (!data) {
+          return reply.status(400).send({ message: 'No se envió ningún archivo de imagen' });
+        }
+
+        const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        if (!allowedMimes.includes(data.mimetype)) {
+          return reply.status(400).send({ message: 'Formato no válido. Use JPG, PNG o WebP.' });
+        }
+
+        const ext = path.extname(data.filename) || '.jpg';
+        const cleanName = `prod-${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
+        const productsDir = path.resolve(uploadsDir, 'products');
+        if (!fs.existsSync(productsDir)) {
+          fs.mkdirSync(productsDir, { recursive: true });
+        }
+
+        const targetPath = path.join(productsDir, cleanName);
+        await pipeline(data.file, fs.createWriteStream(targetPath));
+
+        const relativeUrl = `/uploads/products/${cleanName}`;
+        return reply.status(201).send({ url: relativeUrl });
+      } catch (err: any) {
+        request.log.error(err);
+        return reply.status(500).send({ message: 'Error al guardar la imagen en el servidor' });
+      }
+    }
+  );
+
   fastify.get('/products', async (request, reply) => {
     const parseResult = catalogSearchQuerySchema.safeParse(request.query);
     if (!parseResult.success) {

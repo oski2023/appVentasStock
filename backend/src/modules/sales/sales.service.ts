@@ -399,12 +399,71 @@ export class SalesService {
       values.push(query.hasta);
     }
 
+    // Consulta de resumen / cierre de caja acumulado en el rango seleccionado
+    const summarySql = `
+      SELECT 
+        COUNT(DISTINCT s.id)::int AS total_operaciones,
+        COALESCE(SUM(s.total) FILTER (WHERE s.estado != 'cancelada'), 0) AS total_general,
+        COALESCE(SUM(p.importe) FILTER (WHERE p.medio = 'efectivo' AND p.estado = 'aprobado'), 0) AS total_efectivo,
+        COALESCE(SUM(p.importe) FILTER (WHERE p.medio = 'transferencia' AND p.estado = 'aprobado'), 0) AS total_transferencia,
+        COALESCE(SUM(p.importe) FILTER (WHERE p.medio = 'posnet' AND p.estado = 'aprobado'), 0) AS total_posnet,
+        COALESCE(SUM(p.importe_recibido) FILTER (WHERE p.medio = 'efectivo' AND p.estado = 'aprobado'), 0) AS efectivo_recibido,
+        COALESCE(SUM(p.vuelto) FILTER (WHERE p.medio = 'efectivo' AND p.estado = 'aprobado'), 0) AS efectivo_vuelto
+      FROM sales s
+      LEFT JOIN payments p ON p.sale_id = s.id
+      WHERE ${conditions.join(' AND ')}
+    `;
+
+    const summaryResult = await pool.query(summarySql, values);
+    const summaryRow = summaryResult.rows[0];
+
+    // Consulta principal de ventas con detalle de prendas y pagos
     const sql = `
       SELECT 
         s.id, s.numero_operacion, s.canal, s.subtotal, s.total, s.moneda, s.estado,
         s.carga_diferida, s.fecha_real, s.created_at, s.entregada_en,
         u.nombre AS vendedor_nombre,
-        c.nombre AS customer_nombre
+        c.nombre AS customer_nombre,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', si.id,
+                'descripcion', si.descripcion_historica,
+                'sku', si.sku_historico,
+                'cantidad', si.cantidad,
+                'precio_unitario', si.precio_unitario,
+                'subtotal', si.subtotal,
+                'codigo_variante', pv.codigo,
+                'talle', pv.talle,
+                'color', pv.color
+              )
+            )
+            FROM sale_items si
+            LEFT JOIN product_variants pv ON si.variant_id = pv.id
+            WHERE si.sale_id = s.id
+          ),
+          '[]'::json
+        ) AS items,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', p.id,
+                'medio', p.medio,
+                'importe', p.importe,
+                'importe_recibido', p.importe_recibido,
+                'vuelto', p.vuelto,
+                'referencia_externa', p.referencia_externa,
+                'estado', p.estado,
+                'fecha', p.fecha
+              )
+            )
+            FROM payments p
+            WHERE p.sale_id = s.id
+          ),
+          '[]'::json
+        ) AS pagos
       FROM sales s
       LEFT JOIN users u ON s.vendedor_id = u.id
       LEFT JOIN customers c ON s.customer_id = c.id
@@ -413,13 +472,54 @@ export class SalesService {
       LIMIT $${idx++} OFFSET $${idx}
     `;
 
-    values.push(query.limit, query.offset);
-    const { rows } = await pool.query(sql, values);
+    const salesValues = [...values, query.limit, query.offset];
+    const { rows } = await pool.query(sql, salesValues);
 
-    return rows.map((r) => ({
-      ...r,
-      subtotal: parseFloat(r.subtotal),
-      total: parseFloat(r.total),
-    }));
+    return {
+      ventas: rows.map((r) => ({
+        ...r,
+        subtotal: parseFloat(r.subtotal),
+        total: parseFloat(r.total),
+        items: (r.items || []).map((it: any) => ({
+          ...it,
+          precio_unitario: parseFloat(it.precio_unitario),
+          subtotal: parseFloat(it.subtotal),
+        })),
+        pagos: (r.pagos || []).map((p: any) => ({
+          ...p,
+          importe: parseFloat(p.importe),
+          importe_recibido: p.importe_recibido ? parseFloat(p.importe_recibido) : null,
+          vuelto: parseFloat(p.vuelto || 0),
+        })),
+      })),
+      cierre_caja: {
+        total_operaciones: summaryRow?.total_operaciones || 0,
+        total_general: parseFloat(summaryRow?.total_general || 0),
+        total_efectivo: parseFloat(summaryRow?.total_efectivo || 0),
+        total_transferencia: parseFloat(summaryRow?.total_transferencia || 0),
+        total_posnet: parseFloat(summaryRow?.total_posnet || 0),
+        efectivo_recibido: parseFloat(summaryRow?.efectivo_recibido || 0),
+        efectivo_vuelto: parseFloat(summaryRow?.efectivo_vuelto || 0),
+      },
+    };
+  }
+
+  // ===================== PEDIDOS DE CLIENTES (RF-07, RF-09, RF-25) =====================
+  private static customerOrders = new Map<string, any>();
+
+  static saveCustomerOrder(order: any) {
+    this.customerOrders.set(order.orderNumber.toUpperCase(), order);
+    // Limpieza de pedidos viejos (> 2 horas)
+    const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+    for (const [key, val] of this.customerOrders.entries()) {
+      if (new Date(val.createdAt).getTime() < twoHoursAgo) {
+        this.customerOrders.delete(key);
+      }
+    }
+    return order;
+  }
+
+  static getCustomerOrder(orderNumber: string) {
+    return this.customerOrders.get(orderNumber.trim().toUpperCase()) || null;
   }
 }

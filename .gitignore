@@ -13,6 +13,7 @@ dist/
 build/
 .next/
 out/
+*.tsbuildinfo
 
 # Logs
 logs/
@@ -26,6 +27,10 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 ~$*
+scratch/
+*.exe
+uploads/
+backend/uploads/
 
 # Directorios de IDEs
 .idea/
