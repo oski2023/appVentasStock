@@ -94,8 +94,8 @@ export const RefundsPage: React.FC = () => {
   return (
     <div className="mx-auto max-w-md p-4 pb-24">
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-gray-900">Registro de Devoluciones</h2>
-        <p className="text-xs text-gray-500">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Registro de Devoluciones</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Plazo máximo permitido: <strong>3 días corridos</strong> desde la compra (RN-17). La
           unidad vuelve al stock al registrar la devolución (RN-09).
         </p>
@@ -105,9 +105,9 @@ export const RefundsPage: React.FC = () => {
       <div className="space-y-2">
         <button
           onClick={() => setScannerOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98]"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gray-900 dark:bg-brand-600 py-3 text-sm font-semibold text-white shadow-sm transition active:scale-[0.98] hover:bg-gray-800 dark:hover:bg-brand-700"
         >
-          <Camera className="h-5 w-5 text-brand-400" />
+          <Camera className="h-5 w-5 text-brand-400 dark:text-white" />
           <span>Escanear Comprobante para Devolución</span>
         </button>
 
@@ -123,12 +123,12 @@ export const RefundsPage: React.FC = () => {
             value={operationNumber}
             onChange={(e) => setOperationNumber(e.target.value)}
             placeholder="Nº Comprobante (VTA-2026...)"
-            className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            className="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand-500 focus:outline-none transition-colors"
           />
           <button
             type="submit"
             disabled={loading || !operationNumber.trim()}
-            className="rounded-xl bg-gray-800 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 disabled:opacity-50"
+            className="rounded-xl bg-gray-800 dark:bg-gray-700 px-4 py-2 text-xs font-semibold text-white transition hover:bg-gray-700 dark:hover:bg-gray-600 disabled:opacity-50"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -136,14 +136,14 @@ export const RefundsPage: React.FC = () => {
       </div>
 
       {errorMsg && (
-        <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-700">
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 dark:bg-red-950/60 p-3 text-xs text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900">
           <AlertTriangle className="h-4 w-4 flex-shrink-0" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-50 p-3 text-xs text-green-700">
+        <div className="mt-4 flex items-center gap-2 rounded-xl bg-green-50 dark:bg-green-950/60 p-3 text-xs text-green-700 dark:text-green-300 border border-green-100 dark:border-green-900">
           <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
           <span>{successMsg}</span>
         </div>
@@ -151,24 +151,24 @@ export const RefundsPage: React.FC = () => {
 
       {/* Formulario de Devolución si es elegible */}
       {eligibility && eligibility.elegible && (
-        <div className="mt-4 rounded-3xl bg-white p-5 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between border-b pb-3">
+        <div className="mt-4 rounded-3xl bg-white dark:bg-gray-900 p-5 shadow-sm border border-gray-200 dark:border-gray-800">
+          <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-3">
             <div>
-              <span className="text-xs font-mono text-gray-400">
+              <span className="text-xs font-mono font-bold text-gray-800 dark:text-gray-200 block">
                 {eligibility.numero_operacion}
               </span>
-              <span className="text-xs font-medium text-gray-600 block">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 block mt-0.5">
                 Fecha de compra: {new Date(eligibility.fecha_venta).toLocaleDateString('es-AR')}
               </span>
             </div>
-            <div className="rounded-full bg-green-100 px-2.5 py-1 text-xs font-bold text-green-800">
-              {eligibility.dias_transcurridos} día(s) transcurrido(s)
+            <div className="rounded-full bg-green-100 dark:bg-green-950/60 border border-green-200 dark:border-green-800 px-3 py-1 text-xs font-bold text-green-800 dark:text-green-300">
+              {Math.floor(eligibility.dias_transcurridos ?? 0)} de 3 día(s) transcurridos
             </div>
           </div>
 
           {/* Selección de ítems */}
           <div className="py-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
               Seleccionar Productos a Devolver
             </h4>
             <div className="space-y-2.5">
@@ -179,13 +179,13 @@ export const RefundsPage: React.FC = () => {
                 return (
                   <div
                     key={it.variant_id}
-                    className="flex items-center justify-between rounded-xl bg-gray-50 p-3 text-xs"
+                    className="flex items-center justify-between rounded-xl bg-gray-50 dark:bg-gray-800/60 p-3 text-xs border border-gray-100 dark:border-gray-700/60"
                   >
                     <div className="pr-2">
-                      <span className="font-semibold text-gray-900 block leading-tight">
+                      <span className="font-semibold text-gray-900 dark:text-gray-100 block leading-tight">
                         {it.descripcion}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-mono">
+                      <span className="text-[10px] text-gray-500 dark:text-gray-400 font-mono">
                         Compradas: {it.cantidad_original} | Reintegrables: {max}
                       </span>
                     </div>
@@ -199,7 +199,7 @@ export const RefundsPage: React.FC = () => {
                         onChange={(e) =>
                           handleItemQtyChange(it.variant_id, parseInt(e.target.value, 10) || 0, max)
                         }
-                        className="w-14 rounded-lg border border-gray-300 p-1.5 text-center text-sm font-bold text-gray-900 focus:outline-none"
+                        className="w-14 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-1.5 text-center text-sm font-bold text-gray-900 dark:text-gray-100 focus:outline-none focus:border-brand-500"
                       />
                     </div>
                   </div>
@@ -211,22 +211,22 @@ export const RefundsPage: React.FC = () => {
           {/* Medio de reintegro */}
           <div className="mt-2 space-y-3">
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
                 Medio de Reintegro / Solución
               </label>
               <select
                 value={medio}
                 onChange={(e: any) => setMedio(e.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white p-2.5 text-xs focus:outline-none"
+                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:border-brand-500"
               >
-                <option value="efectivo">Efectivo</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="cambio">Cambio por otra prenda / producto</option>
+                <option value="efectivo" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Efectivo</option>
+                <option value="transferencia" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Transferencia</option>
+                <option value="cambio" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Cambio por otra prenda / producto</option>
               </select>
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-gray-700 block mb-1">
+              <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
                 Motivo de la Devolución (Obligatorio)
               </label>
               <input
@@ -234,13 +234,13 @@ export const RefundsPage: React.FC = () => {
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 placeholder="Ej: Cambio de talle, falla de costura..."
-                className="w-full rounded-xl border border-gray-300 p-2.5 text-xs focus:outline-none"
+                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand-500"
               />
             </div>
 
             {/* Checkbox de devolución sin comprobante (RN-19) */}
-            <div className="rounded-xl bg-amber-50 p-3 border border-amber-200">
-              <label className="flex items-center gap-2 text-xs font-medium text-amber-900">
+            <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 p-3 border border-amber-200 dark:border-amber-900/60">
+              <label className="flex items-center gap-2 text-xs font-medium text-amber-900 dark:text-amber-200 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={sinComprobante}
@@ -251,8 +251,8 @@ export const RefundsPage: React.FC = () => {
               </label>
 
               {sinComprobante && !isAdmin && (
-                <div className="mt-2 pt-2 border-t border-amber-200/60">
-                  <span className="text-[11px] text-amber-800 block mb-1">
+                <div className="mt-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/40">
+                  <span className="text-[11px] text-amber-800 dark:text-amber-300 block mb-1">
                     Requiere autorización de Administrador (RN-19):
                   </span>
                   <input
@@ -260,7 +260,7 @@ export const RefundsPage: React.FC = () => {
                     value={adminAuthId}
                     onChange={(e) => setAdminAuthId(e.target.value)}
                     placeholder="ID o token de administrador autorizador"
-                    className="w-full rounded-lg border border-amber-300 bg-white p-2 text-xs focus:outline-none"
+                    className="w-full rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-gray-800 p-2 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none"
                   />
                 </div>
               )}

@@ -29,14 +29,13 @@ export class RefundsService {
     const ahora = new Date();
     const diffMs = ahora.getTime() - fechaVenta.getTime();
     const diasCorridos = diffMs / (1000 * 60 * 60 * 24);
+    const diasEnteros = Math.floor(diasCorridos);
 
     if (diasCorridos > 3.0) {
       return {
         elegible: false,
-        dias_transcurridos: Math.floor(diasCorridos),
-        motivo: `Ha superado el plazo máximo de 3 días corridos desde la compra (días transcurridos: ${Math.floor(
-          diasCorridos
-        )}). No se permiten devoluciones fuera de término (RN-17, CA-16).`,
+        dias_transcurridos: diasEnteros,
+        motivo: `Ha superado el plazo máximo de 3 días corridos desde la compra (${diasEnteros} de 3 días transcurridos). No se permiten devoluciones fuera de término (RN-17, CA-16).`,
       };
     }
 
@@ -77,7 +76,7 @@ export class RefundsService {
       venta_id: sale.id,
       numero_operacion: sale.numero_operacion,
       fecha_venta: sale.fecha_real,
-      dias_transcurridos: parseFloat(diasCorridos.toFixed(1)),
+      dias_transcurridos: diasEnteros,
       items,
       motivo: hayItemsDisponibles ? null : 'Todos los productos de esta venta ya han sido devueltos previamente',
     };

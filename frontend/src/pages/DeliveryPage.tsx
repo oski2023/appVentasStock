@@ -75,7 +75,7 @@ export const DeliveryPage: React.FC = () => {
             value={operationNumber}
             onChange={(e) => setOperationNumber(e.target.value)}
             placeholder="O ingresa el Nº (VTA-2026...)"
-            className="flex-1 rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none"
+            className="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-brand-500 focus:outline-none transition-colors"
           />
           <button
             type="submit"

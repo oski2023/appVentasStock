@@ -124,7 +124,7 @@ export const DeferredSalePage: React.FC = () => {
             type="datetime-local"
             value={fechaReal}
             onChange={(e) => setFechaReal(e.target.value)}
-            className="w-full rounded-xl border border-gray-300 p-2.5 text-sm focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-sm text-gray-900 dark:text-gray-100 focus:border-brand-500 focus:outline-none transition-colors"
             required
           />
         </div>
@@ -193,17 +193,17 @@ export const DeferredSalePage: React.FC = () => {
             <select
               value={medio}
               onChange={(e: any) => setMedio(e.target.value)}
-              className="w-full rounded-xl border border-gray-300 bg-white p-2.5 text-xs focus:outline-none"
+              className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:border-brand-500"
             >
-              <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-              <option value="posnet">Posnet (terminal física)</option>
+              <option value="efectivo" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Efectivo</option>
+              <option value="transferencia" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Transferencia</option>
+              <option value="posnet" className="text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800">Posnet (terminal física)</option>
             </select>
           </div>
 
           {medio !== 'efectivo' && (
             <div>
-              <label className="text-xs font-bold text-gray-700 block mb-1">
+              <label className="text-xs font-bold text-gray-700 dark:text-gray-300 block mb-1">
                 Número de comprobante / cupón anotado
               </label>
               <input
@@ -211,7 +211,7 @@ export const DeferredSalePage: React.FC = () => {
                 value={referencia}
                 onChange={(e) => setReferencia(e.target.value)}
                 placeholder="Ej: Cupón Nº 12345"
-                className="w-full rounded-xl border border-gray-300 p-2.5 text-xs focus:outline-none"
+                className="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 p-2.5 text-xs text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand-500"
                 required
               />
             </div>
