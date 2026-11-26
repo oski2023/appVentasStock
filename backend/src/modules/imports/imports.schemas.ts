@@ -4,6 +4,8 @@ export const importRowSchema = z.object({
   categoria: z.string().min(1, 'La categoría es obligatoria'),
   producto: z.string().min(1, 'El nombre del producto es obligatorio'),
   descripcion: z.string().optional(),
+  imagen: z.string().optional(),
+  imagenes: z.string().optional(),
   sku: z.string().min(1, 'El SKU es obligatorio'),
   modelo: z.string().optional(),
   talle: z.string().optional(),

@@ -119,6 +119,9 @@ export class ImportsService {
           // Obtener o crear producto
           const cleanProduct = row.producto.trim();
           const productKey = `${categoryId}_${cleanProduct.toLowerCase()}`;
+          const imagenUrl = (row.imagen || row.imagenes)?.trim();
+          const imagenesArr = imagenUrl ? JSON.stringify([imagenUrl]) : '[]';
+
           let productId = productCache.get(productKey);
           if (!productId) {
             const prodRes = await client.query(
@@ -127,12 +130,18 @@ export class ImportsService {
             );
             if (prodRes.rows.length > 0) {
               productId = prodRes.rows[0].id;
+              if (imagenUrl) {
+                await client.query(
+                  `UPDATE products SET imagenes = $1::jsonb WHERE id = $2 AND (imagenes = '[]'::jsonb OR imagenes IS NULL)`,
+                  [imagenesArr, productId]
+                );
+              }
             } else {
               const newProdRes = await client.query(
-                `INSERT INTO products (category_id, nombre, descripcion)
-                 VALUES ($1, $2, $3)
+                `INSERT INTO products (category_id, nombre, descripcion, imagenes)
+                 VALUES ($1, $2, $3, $4::jsonb)
                  RETURNING id`,
-                [categoryId, cleanProduct, row.descripcion || null]
+                [categoryId, cleanProduct, row.descripcion || null, imagenesArr]
               );
               productId = newProdRes.rows[0].id;
             }
