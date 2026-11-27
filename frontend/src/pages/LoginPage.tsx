@@ -125,17 +125,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           </button>
         </form>
 
-        <div className="mt-5 border-t pt-4 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSeedMode(!isSeedMode);
-              setErrorMsg(null);
-            }}
-            className="text-xs text-brand-700 font-semibold hover:underline"
-          >
-            {isSeedMode ? '← Volver al inicio de sesión' : '¿Primer uso? Sembrar Administrador'}
-          </button>
+        <div className="mt-5 border-t pt-4 text-center space-y-2">
+          {!isSeedMode && (
+            <div className="bg-gray-50 rounded-xl p-2.5 text-xs text-gray-500 text-left border border-gray-100">
+              <span className="font-bold text-gray-700 block mb-1">Cuentas de demostración:</span>
+              <div className="flex justify-between items-center py-0.5">
+                <span>👑 Admin:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('admin@local.com');
+                    setPassword('password123');
+                  }}
+                  className="text-brand-600 font-semibold hover:underline"
+                >
+                  admin@local.com
+                </button>
+              </div>
+              <div className="flex justify-between items-center py-0.5">
+                <span>🏷️ Vendedor:</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('vendedor@local.com');
+                    setPassword('password123');
+                  }}
+                  className="text-brand-600 font-semibold hover:underline"
+                >
+                  vendedor@local.com
+                </button>
+              </div>
+              <div className="text-[10px] text-gray-400 mt-1">Clave para ambos: password123 (o tocá arriba para autocompletar)</div>
+            </div>
+          )}
+          <div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSeedMode(!isSeedMode);
+                setErrorMsg(null);
+              }}
+              className="text-xs text-brand-700 font-semibold hover:underline"
+            >
+              {isSeedMode ? '← Volver al inicio de sesión' : '¿Primer uso? Sembrar Administrador'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
